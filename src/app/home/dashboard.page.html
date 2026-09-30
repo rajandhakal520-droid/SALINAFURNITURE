@@ -1,0 +1,34 @@
+<ion-content class="ion-padding" style="background-color: #f4f6f8;">
+  
+  <!-- Header Section -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2>🛋️ International Furniture Store</h2>
+    <div>
+      <span style="background: #e2e8f0; padding: 8px 12px; border-radius: 8px; font-weight: bold;">
+        🛒 Cart ({{ cart.length }})
+      </span>
+    </div>
+  </div>
+
+  <!-- केवल ३ जना एड्मिनले मात्र नयाँ सामान थप्ने बटन देख्नेछन् -->
+  <div *ngIf="isAdmin" style="margin-bottom: 20px; background: #fff3cd; padding: 10px; border-radius: 8px;">
+    <p style="margin: 0; color: #856404; font-weight: bold;">⭐ Welcome Admin! You have permission to add products and manage orders.</p>
+    <ion-button expand="block" color="success" style="margin-top: 10px;">+ नयाँ फर्निचर थप्नुहोस् (Add Product)</ion-button>
+  </div>
+
+  <!-- Product List Grid -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+    <div *ngFor="let item of furnitureList" style="background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+      <h3>{{ item.name }}</h3>
+      <p style="color: #666; font-size: 14px;">{{ item.desc }}</p>
+      <h2 style="color: #2b6cb0; font-weight: bold;">Rs. {{ item.price | number }}</h2>
+      <ion-button expand="block" (click)="addToCart(item)" style="--background: #1a202c;">Add to Cart</ion-button>
+    </div>
+  </div>
+
+  <!-- Checkout Button -->
+  <div *ngIf="cart.length > 0" style="margin-top: 30px; text-align: center;">
+    <ion-button expand="block" color="primary" size="large" (click)="checkout()">Confirm Order (अर्डर गर्नुहोस्)</ion-button>
+  </div>
+
+</ion-content>

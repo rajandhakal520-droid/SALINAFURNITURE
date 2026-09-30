@@ -1,0 +1,368 @@
+<ion-content class="main-content-container">
+  <div class="app-wrapper">
+    <!-- Professional Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <ion-icon name="bed-outline" class="header-logo-icon"></ion-icon>
+        <h2>SALINA FURNITURE</h2>
+      </div>
+      <div class="user-info-area">
+        <span class="welcome-text" *ngIf="isLoggedIn">नमस्ते, {{ userName }}</span>
+        <button class="view-switch-btn" *ngIf="isAdminUser" (click)="toggleAdminViewMode()">
+          <ion-icon name="eye-outline"></ion-icon> {{ adminViewMode === 'admin' ? 'User View' : 'Admin Panel' }}
+        </button>
+      </div>
+    </header>
+
+    <!-- Tabs Content Container -->
+    <main class="tab-content-area">
+      
+      <!-- TAB 1: HOME -->
+      <div *ngIf="activeTab === 'home'" class="tab-pane">
+        
+        <!-- ================= ADMIN PANEL ================= -->
+        <div class="admin-dashboard" *ngIf="isAdminUser && adminViewMode === 'admin'">
+          <div class="admin-tabs-header">
+            <button [class.active]="adminTab === 'entry'" (click)="switchAdminTab('entry')">📦 फर्निचर इन्ट्री (Entry)</button>
+            <button [class.active]="adminTab === 'requests'" (click)="switchAdminTab('requests')">📥 अर्डर रिक्वेस्ट्स (Requests)</button>
+          </div>
+
+          <div class="admin-panel-card" *ngIf="adminTab === 'entry'">
+            <h3>नयाँ फर्निचर इन्ट्री गर्नुहोस्</h3>
+            <div class="form-grid">
+              <input type="text" placeholder="Furniture Name" [(ngModel)]="newProduct.name" />
+              
+              <div class="category-input-group">
+                <select [(ngModel)]="newProduct.category">
+                  <option value="" disabled selected>Select Category</option>
+                  <option *ngFor="let cat of filteredCategories" [value]="cat">{{ cat }}</option>
+                </select>
+                <input type="text" placeholder="Or type new category" [(ngModel)]="customCategoryInput" />
+              </div>
+
+              <input type="number" placeholder="Price (Rs.)" [(ngModel)]="newProduct.price" (input)="calculateFinalPrice()" />
+              <input type="number" placeholder="Discount (%)" [(ngModel)]="newProduct.discount" (input)="calculateFinalPrice()" />
+              <input type="text" placeholder="Final Price" [value]="newProduct.finalPrice" disabled />
+              
+              <div class="image-upload-wrapper">
+                <label class="file-upload-label">
+                  <ion-icon name="image-outline"></ion-icon> Upload Furniture Image
+                  <input type="file" (change)="onFileSelected($event)" accept="image/*" style="display:none;" />
+                </label>
+                <div class="preview-container" *ngIf="newProduct.image">
+                  <img [src]="newProduct.image" alt="Preview" class="img-preview" />
+                  <span>Photo Selected ✅</span>
+                </div>
+              </div>
+
+              <textarea placeholder="Description" [(ngModel)]="newProduct.desc"></textarea>
+            </div>
+            <button class="primary-btn" (click)="publishProduct()">सेभ गर्नुहोस्</button>
+
+            <!-- Admin Manage Section -->
+            <div class="admin-products-manage-section">
+              <h3>🏷️ क्याटेगोरी व्यवस्थापन</h3>
+              <div class="category-manage-list">
+                <div *ngFor="let cat of filteredCategories" class="cat-pill">
+                  <span>{{ cat }}</span>
+                  <button (click)="deleteCategory(cat)" class="cat-del-x">✕</button>
+                </div>
+              </div>
+
+              <h3>📋 हाल उपलब्ध फर्निचरहरू</h3>
+              <div class="admin-manage-list">
+                <div *ngFor="let prod of productsList" class="admin-prod-row">
+                  <div class="admin-prod-info">
+                    <img [src]="prod.image" alt="" />
+                    <div><strong>{{ prod.name }}</strong> (Rs. {{ prod.finalPrice | number:'1.2-2' }})</div>
+                  </div>
+                  <button (click)="deleteProduct(prod.id)" class="admin-del-btn">🗑️ डिलिट</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-requests-card" *ngIf="adminTab === 'requests'">
+            <h3>युजरहरूको अर्डर रिक्वेस्ट (सामान हेर्न क्लिक गर्नुहोस्)</h3>
+            <div *ngIf="ordersRequestsList.length === 0" class="no-request">कुनै पनि नयाँ रिक्वेस्ट आएको छैन।</div>
+            
+            <!-- अर्डर आइटम क्लिक गरेर डिटेल हेर्ने कार्ड -->
+            <div class="request-item" *ngFor="let req of ordersRequestsList" (click)="viewOrderItems(req)">
+              <div class="req-info">
+                <strong>👤 ग्राहक: {{ req.customerName }}</strong>
+                <p>📞 फोन: {{ req.phone }} | ✉️ इमेल: {{ req.email }}</p>
+                <p>📍 ठेगाना: {{ req.address }}</p>
+                <p class="req-total">💰 जम्मा: Rs. {{ req.totalPrice | number:'1.2-2' }} | स्थिति: <b>{{ req.status }}</b></p>
+                <span class="click-to-view-hint">👉 अर्डर गरिएका सामानहरू हेर्न यहाँ क्लिक गर्नुहोस् ({{ req.items.length }} items)</span>
+              </div>
+              <div class="req-actions" (click)="$event.stopPropagation()">
+                <button class="accept-btn" (click)="acceptOrderRequest(req.id)" *ngIf="req.status.includes('Pending')">Dispatch</button>
+                <button class="delete-req-btn" (click)="deleteOrderRequest(req.id)">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= USER / CATALOG VIEW ================= -->
+        <div class="user-catalog-view" *ngIf="!isAdminUser || adminViewMode === 'customer'">
+          
+          <div class="flash-sale-banner">
+            <div class="banner-content">
+              <span class="badge-fire">🔥 MEGA FESTIVE SALE</span>
+              <h2>Up to 20% OFF on Premium Furniture</h2>
+              <p>Handcrafted wooden collections for your dream home.</p>
+            </div>
+          </div>
+
+          <div class="search-bar-container">
+            <ion-icon name="search-outline"></ion-icon>
+            <input type="text" placeholder="Search beds, tables, sofas..." [(ngModel)]="searchQuery" />
+            <button *ngIf="searchQuery" (click)="searchQuery = ''" class="clear-search">✕</button>
+          </div>
+          
+          <div class="category-filter-bar">
+            <button *ngFor="let cat of activeCategoriesInCatalog" 
+                    [class.active]="selectedCategory === cat" 
+                    (click)="selectedCategory = cat">
+              {{ cat }}
+            </button>
+          </div>
+
+          <div class="products-grid-4col">
+            <div class="product-card-compact" *ngFor="let item of getFilteredProducts()" (click)="openProductDetail(item, $event)">
+              <div class="product-img-box">
+                <img [src]="item.image" alt="Furniture Image" />
+                <span class="badge-discount" *ngIf="item.discount > 0">{{ item.discount }}%</span>
+                <button class="wishlist-icon-btn" (click)="toggleWishlist(item.id, $event)">
+                  <ion-icon [name]="isFavorite(item.id) ? 'heart' : 'heart-outline'" [style.color]="isFavorite(item.id) ? '#ff3333' : '#fff'"></ion-icon>
+                </button>
+              </div>
+              <div class="product-details">
+                <span class="cat-badge">{{ item.category }}</span>
+                <h4>{{ item.name }}</h4>
+                
+                <div class="rating-row">
+                  <ion-icon name="star" style="color: #f59f00; font-size: 10px;"></ion-icon>
+                  <span style="font-size: 10px; color: #a0aec0;">{{ item.rating || 4.7 }} ({{ item.reviewsCount || 5 }})</span>
+                </div>
+
+                <div class="price-row">
+                  <span class="final-price">Rs. {{ item.finalPrice | number:'1.0-0' }}</span>
+                </div>
+
+                <div class="card-quantity-control">
+                  <div *ngIf="getItemQuantityInCart(item.id) === 0">
+                    <button class="buy-now-btn" (click)="increaseQuantity(item)">
+                      Buy Now
+                    </button>
+                  </div>
+                  <div *ngIf="getItemQuantityInCart(item.id) > 0" class="qty-stepper">
+                    <button (click)="decreaseQuantity(item)">-</button>
+                    <span>{{ getItemQuantityInCart(item.id) }}</span>
+                    <button (click)="increaseQuantity(item)">+</button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <div class="compact-cart-bar" *ngIf="cart.length > 0">
+            <div class="cart-info-text">
+              🛒 <b>{{ getTotalCartCount() }}</b> items | Total: <b style="color: #f59f00;">Rs. {{ getTotalCartPrice() | number:'1.2-2' }}</b>
+            </div>
+            <button class="compact-checkout-btn" (click)="proceedToCheckout()">
+              Checkout ➔
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- TAB 2: MESSAGES / CHAT -->
+      <div *ngIf="activeTab === 'messages'" class="tab-pane chat-pane">
+        <h2>Customer Support & Chat</h2>
+        <div class="chat-box">
+          <div class="messages-list">
+            <div class="message-bubble" *ngFor="let msg of getFilteredMessages()" [class.my-message]="msg.senderEmail === userEmail">
+              <span class="sender-name">{{ msg.senderName }}</span>
+              <img *ngIf="msg.type === 'image'" [src]="msg.text" alt="Shared Image" class="chat-img-preview" />
+              <p *ngIf="msg.type === 'text'">{{ msg.text }}</p>
+              <span class="time">{{ msg.timestamp | date:'shortTime' }}</span>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" placeholder="Type a message..." [(ngModel)]="newMessageText" (keyup.enter)="sendMessage('text')" />
+            <input type="file" id="chatImg" style="display:none" (change)="sendChatImage($event)" accept="image/*" />
+            <label for="chatImg" class="icon-btn"><ion-icon name="image-outline"></ion-icon></label>
+            <button class="send-btn" (click)="sendMessage('text')"><ion-icon name="send-outline"></ion-icon></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PROFILE / LOGIN -->
+      <div *ngIf="activeTab === 'profile'" class="tab-pane profile-pane">
+        <div class="auth-card" *ngIf="!isLoggedIn">
+          <h2>SALINA FURNITURE</h2>
+          <p class="auth-sub">Sign in securely with your Google account to track orders & shop.</p>
+          
+          <div class="auth-form">
+            <button class="google-btn" (click)="continueWithGoogle()">
+              <ion-icon name="logo-google" style="font-size: 20px;"></ion-icon> Continue with Google
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-card-logged" *ngIf="isLoggedIn">
+          <div class="profile-header-info">
+            <ion-icon name="person-outline" class="profile-avatar"></ion-icon>
+            <h3>{{ userName }}</h3>
+            <p>{{ userEmail }}</p>
+            <span class="role-badge">{{ isAdminUser ? 'Administrator' : 'Verified Customer' }}</span>
+          </div>
+
+          <div class="order-tracking-section" style="margin-top: 20px; text-align: left; width: 100%;">
+            <h4 style="color: #f59f00; font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid #2f354a; padding-bottom: 4px;">📦 My Orders & Tracking</h4>
+            <div *ngIf="myCustomerOrders.length === 0" style="font-size: 11px; color: #a0aec0; text-align: center; padding: 10px;">No orders placed yet.</div>
+            <div class="tracking-card" *ngFor="let ord of myCustomerOrders" style="background: #12141c; padding: 10px; border-radius: 8px; border: 1px solid #2f354a; margin-bottom: 8px; font-size: 11px;">
+              <div style="display: flex; justify-content: space-between; font-weight: bold; color: #fff;">
+                <span>Order ID: #{{ ord.id.toString().slice(-5) }}</span>
+                <span style="color: #f59f00;">Rs. {{ ord.totalPrice | number:'1.2-2' }}</span>
+              </div>
+              <p style="color: #a0aec0; margin: 4px 0;">Status: <b style="color: #2b8a3e;">{{ ord.status }}</b></p>
+              <p style="color: #cbd5e0; margin: 0;">Address: {{ ord.address }}</p>
+            </div>
+          </div>
+
+          <button class="logout-btn-large" (click)="logout()">
+            <ion-icon name="log-out-outline"></ion-icon> Logout
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Product Detail Modal -->
+    <div class="product-detail-modal-overlay" *ngIf="showDetailModal">
+      <div class="product-detail-card" *ngIf="selectedProductDetail">
+        <button class="close-detail-btn" (click)="closeProductDetail()">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+        
+        <div class="detail-img-box">
+          <img [src]="selectedProductDetail.image" alt="Product Image" />
+        </div>
+        
+        <div class="detail-info-box">
+          <span class="cat-badge">{{ selectedProductDetail.category }}</span>
+          <h2>{{ selectedProductDetail.name }}</h2>
+          
+          <div class="rating-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+            <ion-icon name="star" style="color: #f59f00; font-size: 14px;"></ion-icon>
+            <span style="font-size: 12px; font-weight: bold; color: #fff;">{{ selectedProductDetail.rating || 4.7 }} / 5.0</span>
+            <span style="font-size: 11px; color: #a0aec0;">({{ selectedProductDetail.reviewsCount || 5 }} customer reviews)</span>
+          </div>
+
+          <div class="detail-price-row">
+            <span class="final-price">Rs. {{ selectedProductDetail.finalPrice | number:'1.2-2' }}</span>
+            <span class="old-price" *ngIf="selectedProductDetail.discount > 0">Rs. {{ selectedProductDetail.price | number:'1.2-2' }}</span>
+            <span class="disc-tag" *ngIf="selectedProductDetail.discount > 0">{{ selectedProductDetail.discount }}% OFF</span>
+          </div>
+
+          <div class="description-section">
+            <h4>Description:</h4>
+            <p>{{ selectedProductDetail.desc }}</p>
+          </div>
+
+          <div class="modal-buy-section" style="margin-top: 15px;">
+            <div *ngIf="getItemQuantityInCart(selectedProductDetail.id) === 0">
+              <button class="buy-now-btn-large" (click)="increaseQuantity(selectedProductDetail)">
+                🛒 Buy Now (कार्टमा थप्नुहोस्)
+              </button>
+            </div>
+            <div *ngIf="getItemQuantityInCart(selectedProductDetail.id) > 0" class="qty-stepper-large" style="display: flex; align-items: center; justify-content: space-between; background: #252a3a; padding: 8px 15px; border-radius: 8px;">
+              <button (click)="decreaseQuantity(selectedProductDetail)" style="background: #c92a2a; color: white; border: none; width: 30px; height: 30px; border-radius: 6px; font-weight: bold; cursor: pointer;">-</button>
+              <span style="font-size: 14px; font-weight: bold; color: #fff;">Quantity: {{ getItemQuantityInCart(selectedProductDetail.id) }}</span>
+              <button (click)="increaseQuantity(selectedProductDetail)" style="background: #2b8a3e; color: white; border: none; width: 30px; height: 30px; border-radius: 6px; font-weight: bold; cursor: pointer;">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Order Items Detail Modal (अर्डर गरिएका सामानहरूको सूची देखाउने मोडल) -->
+    <div class="product-detail-modal-overlay" *ngIf="showOrderItemsModal">
+      <div class="product-detail-card" *ngIf="selectedOrderItemsModal" style="max-width: 450px;">
+        <button class="close-detail-btn" (click)="closeOrderItemsModal()">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+        
+        <div class="detail-info-box" style="padding: 20px;">
+          <h2 style="color: #f59f00; font-size: 16px; margin-bottom: 5px;">📦 अर्डर गरिएका सामानहरूको विवरण</h2>
+          <p style="font-size: 11px; color: #a0aec0; margin-bottom: 15px;">ग्राहक: <b>{{ selectedOrderItemsModal.customerName }}</b> | फोन: <b>{{ selectedOrderItemsModal.phone }}</b></p>
+          
+          <div class="order-items-list-box" style="display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto;">
+            <div *ngFor="let item of selectedOrderItemsModal.items" style="display: flex; align-items: center; justify-content: space-between; background: #12141c; padding: 8px; border-radius: 6px; border: 1px solid #2f354a;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <img [src]="item.image" alt="" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;" />
+                <div>
+                  <h4 style="font-size: 12px; color: #fff; margin: 0;">{{ item.name }}</h4>
+                  <p style="font-size: 10px; color: #a0aec0; margin: 2px 0;">Qty: <b>{{ item.quantity }}</b> | Unit: Rs. {{ item.finalPrice | number:'1.2-2' }}</p>
+                </div>
+              </div>
+              <div style="font-size: 12px; font-weight: bold; color: #f59f00;">
+                Rs. {{ (item.finalPrice * item.quantity) | number:'1.2-2' }}
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 15px; border-top: 1px dashed #2f354a; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; color: #fff;">
+            <span>जम्मा कुल मूल्य (Total):</span>
+            <span style="color: #f59f00;">Rs. {{ selectedOrderItemsModal.totalPrice | number:'1.2-2' }}</span>
+          </div>
+
+          <button class="buy-now-btn-large" (click)="closeOrderItemsModal()" style="margin-top: 15px; background: #2b8a3e;">
+            बन्द गर्नुहोस् (Close)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mandatory Checkout Modal -->
+    <div class="checkout-modal-overlay" *ngIf="showCheckoutModal">
+      <div class="checkout-modal-card">
+        <h3>Complete Your Order</h3>
+        <p class="modal-sub">(Secure checkout with verified account)</p>
+        
+        <div class="checkout-form">
+          <input type="text" placeholder="Full Name *" [(ngModel)]="checkoutData.fullName" />
+          <input type="tel" placeholder="Phone Number *" [(ngModel)]="checkoutData.phone" />
+          <input type="text" placeholder="Delivery Address / Location *" [(ngModel)]="checkoutData.address" />
+          <input type="email" placeholder="Email Address *" [(ngModel)]="checkoutData.email" />
+        </div>
+
+        <div class="modal-actions">
+          <button class="cancel-modal-btn" (click)="showCheckoutModal = false">Cancel</button>
+          <button class="submit-order-btn" (click)="submitOrderRequest()">Confirm Order</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button [class.active]="activeTab === 'home'" (click)="switchTab('home')">
+        <ion-icon name="home-outline"></ion-icon>
+        <span>Home</span>
+      </button>
+      <button [class.active]="activeTab === 'messages'" (click)="switchTab('messages')">
+        <ion-icon name="chatbubbles-outline"></ion-icon>
+        <span>Support</span>
+      </button>
+      <button [class.active]="activeTab === 'profile'" (click)="switchTab('profile')">
+        <ion-icon name="person-outline"></ion-icon>
+        <span>Profile</span>
+      </button>
+    </nav>
+  </div>
+</ion-content>
