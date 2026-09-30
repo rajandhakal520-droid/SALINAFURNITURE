@@ -1,11 +1,11 @@
-import { Component, OnInit, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, OnInit, OnDestroy, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { addIcons } from 'ionicons';
 import { 
   logoGoogle, bedOutline, cartOutline, trashOutline, addCircleOutline, 
   imageOutline, videocamOutline, addOutline, removeOutline, 
-  homeOutline, chatbubblesOutline, personOutline, sendOutline, micOutline, logOutOutline, eyeOutline, checkmarkCircleOutline, closeOutline, searchOutline, heartOutline, heart, star, listOutline, eye 
+  homeOutline, chatbubblesOutline, personOutline, sendOutline, micOutline, logOutOutline, eyeOutline, checkmarkCircleOutline, closeOutline, searchOutline, heartOutline, heart, star, listOutline, eye, cameraOutline 
 } from 'ionicons/icons';
 import { signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.config';
@@ -18,7 +18,7 @@ import { auth, googleProvider } from './firebase.config';
   imports: [CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
-export class HomePage implements OnInit {
+export class HomePage implements OnInit, OnDestroy {
   activeTab: string = 'home';
 
   isLoggedIn: boolean = false;
@@ -27,9 +27,22 @@ export class HomePage implements OnInit {
   userEmail: string = '';
   userName: string = '';
   
-  // यहाँ एडमिनले लगइन गर्दा पनि सुरुमा कस्टमर भ्यु नै खुल्ने बनाइएको छ ('customer')
+  // Flash Sale Live Timer Variables
+  flashSaleTime: string = "12h : 45m : 30s";
+  private timerInterval: any;
+
+  // एडमिन भ्यु र ट्याब कन्फिगरेसन
   adminViewMode: 'admin' | 'customer' = 'customer';
-  adminTab: 'entry' | 'requests' = 'entry';
+  adminTab: string = 'entry';
+
+  // युजर प्रोफाइल डेटा
+  userProfile = {
+    name: '',
+    bio: '',
+    photo: ''
+  };
+
+  registeredUsersList: any[] = [];
 
   searchQuery: string = '';
   selectedCategory: string = 'All';
@@ -129,11 +142,13 @@ export class HomePage implements OnInit {
     addIcons({ 
       logoGoogle, bedOutline, cartOutline, trashOutline, addCircleOutline, 
       imageOutline, videocamOutline, addOutline, removeOutline, 
-      homeOutline, chatbubblesOutline, personOutline, sendOutline, micOutline, logOutOutline, eyeOutline, checkmarkCircleOutline, closeOutline, searchOutline, heartOutline, heart, star, listOutline, eye 
+      homeOutline, chatbubblesOutline, personOutline, sendOutline, micOutline, logOutOutline, eyeOutline, checkmarkCircleOutline, closeOutline, searchOutline, heartOutline, heart, star, listOutline, eye, cameraOutline 
     });
   }
 
   ngOnInit() {
+    this.startLiveCountdown();
+
     const savedLogin = localStorage.getItem('salina_logged_user');
     if (savedLogin) {
       try {
@@ -143,6 +158,23 @@ export class HomePage implements OnInit {
         this.userName = userData.name;
         this.isAdminUser = userData.isAdmin;
         this.selectedRole = userData.isAdmin ? 'admin' : 'customer';
+      } catch (e) {}
+    }
+
+    const savedProfile = localStorage.getItem('salina_user_profile');
+    if (savedProfile) {
+      try {
+        this.userProfile = JSON.parse(savedProfile);
+        if (this.userProfile.name) {
+          this.userName = this.userProfile.name;
+        }
+      } catch (e) {}
+    }
+
+    const savedAllUsers = localStorage.getItem('salina_all_users');
+    if (savedAllUsers) {
+      try {
+        this.registeredUsersList = JSON.parse(savedAllUsers);
       } catch (e) {}
     }
 
@@ -179,7 +211,10 @@ export class HomePage implements OnInit {
       onAuthStateChanged(auth, (user) => {
         if (user) {
           this.userEmail = (user.email || '').trim().toLowerCase();
-          this.userName = user.displayName || user.email?.split('@')[0] || 'User';
+          if (!this.userName || this.userName === 'User') {
+            this.userName = user.displayName || this.userEmail.split('@')[0] || 'User';
+            this.userProfile.name = this.userName;
+          }
           this.isLoggedIn = true;
           
           if (this.userEmail === 'rajandhakal520@gmail.com' || this.userEmail === 'nishanpartel028@gmail.com') {
@@ -195,6 +230,8 @@ export class HomePage implements OnInit {
             name: this.userName,
             isAdmin: this.isAdminUser
           }));
+
+          this.saveOrUpdateRegisteredUser();
         }
       });
     }).catch((error) => {
@@ -202,81 +239,32 @@ export class HomePage implements OnInit {
     });
   }
 
-  saveProductsToStorage() {
-    localStorage.setItem('salina_products', JSON.stringify(this.productsList));
-  }
-
-  saveCategoriesToStorage() {
-    localStorage.setItem('salina_categories', JSON.stringify(this.availableCategories));
-  }
-
-  saveOrdersToStorage() {
-    localStorage.setItem('salina_all_orders', JSON.stringify(this.ordersRequestsList));
-    this.updateMyOrders();
-  }
-
-  updateMyOrders() {
-    this.myCustomerOrders = this.ordersRequestsList.filter(o => o.email.trim().toLowerCase() === this.userEmail.trim().toLowerCase());
-  }
-
-  switchTab(tabName: string) {
-    this.activeTab = tabName;
-  }
-
-  toggleAdminViewMode() {
-    this.adminViewMode = this.adminViewMode === 'admin' ? 'customer' : 'admin';
-  }
-
-  switchAdminTab(tab: 'entry' | 'requests') {
-    this.adminTab = tab;
-  }
-
-  async continueWithGoogle() {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      this.userEmail = (user.email || '').trim().toLowerCase();
-      this.userName = user.displayName || 'Google User';
-      this.isLoggedIn = true;
-      
-      if (this.userEmail === 'rajandhakal520@gmail.com' || this.userEmail === 'nishanpartel028@gmail.com') {
-        this.isAdminUser = true;
-        this.selectedRole = 'admin';
-      } else {
-        this.isAdminUser = false;
-        this.selectedRole = 'customer';
-      }
-
-      localStorage.setItem('salina_logged_user', JSON.stringify({
-        email: this.userEmail,
-        name: this.userName,
-        isAdmin: this.isAdminUser
-      }));
-
-      this.updateMyOrders();
-      alert('सफलतापूर्वक गुगलबाट लगइन भयो!');
-    } catch (error: any) {
-      alert('गुगल अकाउन्टबाट लगइन गर्न सकिएन: ' + error.message);
+  ngOnDestroy() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
     }
   }
 
-  async logout() {
-    try {
-      await signOut(auth);
-    } catch (e) {}
-    
-    localStorage.removeItem('salina_logged_user');
+  startLiveCountdown() {
+    let totalSeconds = 12 * 3600 + 45 * 60 + 30;
 
-    this.isLoggedIn = false;
-    this.isAdminUser = false;
-    this.selectedRole = '';
-    this.userName = '';
-    this.userEmail = '';
-    this.cart = [];
-    this.myCustomerOrders = [];
-    this.activeTab = 'home';
-    this.adminViewMode = 'customer'; // लगआउट हुँदा पनि डिफल्ट कस्टमर भ्यु
+    this.timerInterval = setInterval(() => {
+      if (totalSeconds <= 0) {
+        totalSeconds = 12 * 3600; 
+      }
+
+      totalSeconds--;
+
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      const h = String(hours).padStart(2, '0');
+      const m = String(minutes).padStart(2, '0');
+      const s = String(seconds).padStart(2, '0');
+
+      this.flashSaleTime = `${h}h : ${m}m : ${s}s`;
+    }, 1000);
   }
 
   calculateFinalPrice() {
@@ -559,5 +547,133 @@ export class HomePage implements OnInit {
     } else {
       return this.messagesList.filter(m => m.senderEmail === this.userEmail || m.receiverEmail === this.userEmail || m.receiverEmail === 'all');
     }
+  }
+
+  saveOrUpdateRegisteredUser() {
+    const existingIndex = this.registeredUsersList.findIndex(u => u.email === this.userEmail);
+    const userDataObj = {
+      email: this.userEmail,
+      name: this.userName,
+      bio: this.userProfile.bio || '',
+      photo: this.userProfile.photo || ''
+    };
+
+    if (existingIndex !== -1) {
+      this.registeredUsersList[existingIndex] = { ...this.registeredUsersList[existingIndex], ...userDataObj };
+    } else {
+      this.registeredUsersList.push(userDataObj);
+    }
+    localStorage.setItem('salina_all_users', JSON.stringify(this.registeredUsersList));
+  }
+
+  saveProductsToStorage() {
+    localStorage.setItem('salina_products', JSON.stringify(this.productsList));
+  }
+
+  saveCategoriesToStorage() {
+    localStorage.setItem('salina_categories', JSON.stringify(this.availableCategories));
+  }
+
+  saveOrdersToStorage() {
+    localStorage.setItem('salina_all_orders', JSON.stringify(this.ordersRequestsList));
+    this.updateMyOrders();
+  }
+
+  updateMyOrders() {
+    this.myCustomerOrders = this.ordersRequestsList.filter(o => o.email.trim().toLowerCase() === this.userEmail.trim().toLowerCase());
+  }
+
+  switchTab(tabName: string) {
+    this.activeTab = tabName;
+  }
+
+  toggleAdminViewMode() {
+    this.adminViewMode = this.adminViewMode === 'admin' ? 'customer' : 'admin';
+  }
+
+  switchAdminTab(tab: string) {
+    this.adminTab = tab;
+  }
+
+  getUserMessageCount(email: string): number {
+    return this.messagesList.filter((m: any) => m.senderEmail === email).length;
+  }
+
+  onProfilePhotoSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.userProfile.photo = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  saveUserProfile() {
+    if (this.userProfile.name) {
+      this.userName = this.userProfile.name;
+    }
+    localStorage.setItem('salina_user_profile', JSON.stringify(this.userProfile));
+    
+    const loggedUser = {
+      email: this.userEmail,
+      name: this.userName,
+      isAdmin: this.isAdminUser
+    };
+    localStorage.setItem('salina_logged_user', JSON.stringify(loggedUser));
+
+    this.saveOrUpdateRegisteredUser();
+    alert('प्रोफाइल सफलतापूर्वक सेभ भयो!');
+  }
+
+  async continueWithGoogle() {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      this.userEmail = (user.email || '').trim().toLowerCase();
+      this.userName = user.displayName || 'Google User';
+      this.userProfile.name = this.userName;
+      this.isLoggedIn = true;
+      
+      if (this.userEmail === 'rajandhakal520@gmail.com' || this.userEmail === 'nishanpartel028@gmail.com') {
+        this.isAdminUser = true;
+        this.selectedRole = 'admin';
+      } else {
+        this.isAdminUser = false;
+        this.selectedRole = 'customer';
+      }
+
+      localStorage.setItem('salina_logged_user', JSON.stringify({
+        email: this.userEmail,
+        name: this.userName,
+        isAdmin: this.isAdminUser
+      }));
+
+      this.saveOrUpdateRegisteredUser();
+      this.updateMyOrders();
+      alert('सफलतापूर्वक गुगलबाट लगइन भयो!');
+    } catch (error: any) {
+      alert('गुगल अकाउन्टबाट लगइन गर्न सकिएन: ' + error.message);
+    }
+  }
+
+  async logout() {
+    try {
+      await signOut(auth);
+    } catch (e) {}
+    
+    localStorage.removeItem('salina_logged_user');
+
+    this.isLoggedIn = false;
+    this.isAdminUser = false;
+    this.selectedRole = '';
+    this.userName = '';
+    this.userEmail = '';
+    this.cart = [];
+    this.myCustomerOrders = [];
+    this.activeTab = 'home';
+    this.adminViewMode = 'customer';
   }
 }
